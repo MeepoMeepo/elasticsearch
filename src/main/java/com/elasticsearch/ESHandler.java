@@ -8,6 +8,11 @@ import java.util.List;
 
 import org.springframework.util.StringUtils;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+
+import io.searchbox.client.JestResult;
+
 public class ESHandler {
     private static final String manual_index_name = "default";
 
@@ -54,5 +59,40 @@ public class ESHandler {
             calendar.add(Calendar.DAY_OF_YEAR, 7);
         }
         return indexs;
+    }
+    
+    /**
+     * 结果解析
+     *
+     * @param jestResult Jest封装的ES结果
+     * @param sourceType 结果类
+     */
+    public static <S> ESSearchResult<S> parseResult(JestResult jestResult, Class<S> sourceType) {
+        List<S> hits = jestResult.getSourceAsObjectList(sourceType);
+        ESSearchResult<S> result = new ESSearchResult<>();
+        //赋值
+        if (jestResult.isSucceeded()) {
+            JsonElement scrollId = jestResult.getJsonObject().get("_scroll_id");
+            result.setHits(hits);
+            if (scrollId != null) {
+                result.setScrollId(scrollId.getAsString());
+            }
+            result.setTotal(jestResult.getJsonObject().getAsJsonObject("hits").get("total").getAsLong());
+            result.setAggregations(getAggregations(jestResult.getJsonObject()));
+            return result;
+        }
+		return result;
+    }
+    
+    public static JsonObject getAggregations(JsonObject jsonObject) {
+        if (jsonObject == null) {
+            return new JsonObject();
+        }
+        if (jsonObject.has("aggregations"))
+            return jsonObject.getAsJsonObject("aggregations");
+        if (jsonObject.has("aggs")) {
+            return jsonObject.getAsJsonObject("aggs");
+        }
+        return new JsonObject();
     }
 }
